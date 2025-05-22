@@ -90,8 +90,9 @@
       (println "⚠ Nenhum alimento encontrado.")
       (let [escolhido (escolher-item itens
                                      #(format "%s - %.1f kcal/100g"
-                                              (:description %) (:kcal100g %)))
-            gramas    (ler-double "Quantos gramas ingeridos? ")]
+                                              (:description %)
+                                              (double (or (:kcal100g %) 0))))
+        gramas    (ler-double "Quantos gramas ingeridos? ")]
         (if (and gramas (:kcal100g escolhido))
           (let [total (long (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas)))
                 info  {:descricao (:description escolhido)
