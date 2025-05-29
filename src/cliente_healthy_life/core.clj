@@ -5,6 +5,14 @@
 
 (def base-url "http://localhost:3000")
 
+;; ======== Tradução via Backend ========
+(defn traduzir-texto [texto de para]
+  (let [response (client/get (str base-url "/translate")
+                             {:query-params {"texto" texto "de" de "para" para}
+                              :as :json})
+        traduzido (get-in response [:body :traduzido])]
+    (if (str/blank? traduzido) texto traduzido)))
+
 ;; ======== Utilitários ========
 (defn ler-linha-trim []
   (str/trim (read-line)))
@@ -18,7 +26,7 @@
       nil)))
 
 (defn menu-loop? [msg]
-  (print (str msg " (s = sim / outro = não): "))
+  (print (str msg " (s = sim / n = não): "))
   (flush)
   (= "s" (str/lower-case (ler-linha-trim))))
 
@@ -35,17 +43,19 @@
 
 ;; ======== Chamadas à API ========
 (defn buscar-alimentos [termo]
-  (let [response (client/get (str base-url "/buscar-alimentos")
-                             {:query-params {"termo" termo}
+  (let [termo-en (traduzir-texto termo "pt" "en") ; Usa backend para tradução
+        response (client/get (str base-url "/buscar-alimentos")
+                             {:query-params {"termo" termo-en}
                               :as :json})]
-    (get-in response [:body :alimentos])))
+    (map #(update % :description traduzir-texto "en" "pt") ; Usa backend para tradução
+         (get-in response [:body :alimentos]))))
 
 (defn obter-kcal-100g [fdc-id]
   (let [response (client/get (str base-url "/calorias-100g/" fdc-id)
                              {:as :json})]
     (get-in response [:body :kcal-por-100g])))
 
-;; ======== Funções de Persistência no Backend ========
+;; ======== Funções de Persistência ========
 (defn salvar-usuario! [usuario]
   (client/post (str base-url "/salvar-usuario")
                {:body (json/generate-string usuario)
@@ -102,13 +112,15 @@
   (print "Data do exercício (AAAA-MM-DD): ") (flush)
   (let [data    (ler-linha-trim)
         nome    (do (print "Nome do exercício: ") (flush) (ler-linha-trim))
+        nome-en (traduzir-texto nome "pt" "en") ; Usa backend para tradução
         duracao (ler-double "Duração (min): ")
         peso    (:peso (first (vals (:usuarios (obter-dados)))))]
     (if (and nome duracao peso)
       (let [response  (client/get (str base-url "/atividade")
-                                  {:query-params {"atividade" nome "peso" peso "duracao" duracao}
+                                  {:query-params {"atividade" nome-en "peso" peso "duracao" duracao}
                                    :as :json})
-            atividades (get-in response [:body :variantes])]
+            atividades (map #(update % :name traduzir-texto "en" "pt") ; Usa backend para tradução
+                            (get-in response [:body :variantes]))]
         (if (empty? atividades)
           (println "⚠ Nenhum exercício encontrado.")
           (let [escolhido (escolher-item atividades #(format "%s - %s kcal" (:name %) (:total_calories %)))
@@ -128,25 +140,17 @@
         total-exercicios (reduce + (map :calorias (:exercicios dados)))
         saldo (- total-alimentos total-exercicios)]
     (println "\n=== 📊 Relatório de Calorias ===")
-
-    ;; Seção do Usuário
     (println "\n👤 Usuário:")
     (doseq [[nome usuario] (:usuarios dados)]
       (println (format " - %s (%.1f kg)" nome (:peso usuario))))
-
-    ;; Seção de Alimentos
     (println "\n🍽 Alimentos Consumidos:")
     (doseq [alimento (:alimentos dados)]
       (println (format " - [%s] %s: %d kcal" (:data alimento) (:descricao alimento) (:kcal alimento))))
     (println (format "\n🔴 Total de calorias consumidas: %d kcal" total-alimentos))
-
-    ;; Seção de Exercícios
     (println "\n🏋 Exercícios Realizados:")
     (doseq [exercicio (:exercicios dados)]
       (println (format " - [%s] %s: %s kcal" (:data exercicio) (:nome exercicio) (:calorias exercicio))))
     (println (format "\n🟢 Total de calorias queimadas: %d kcal" total-exercicios))
-
-    ;; Saldo Final
     (println (format "\n⚖ Saldo de calorias: %s%d kcal"
                      (if (neg? saldo) "" "+")
                      saldo))))
