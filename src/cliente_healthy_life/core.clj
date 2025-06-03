@@ -5,15 +5,8 @@
 
 (def base-url "http://localhost:3000")
 
-;; ======== Tradução via Backend ========
-(defn traduzir-texto [texto de para]
-  (let [response (client/get (str base-url "/translate")
-                             {:query-params {"texto" texto "de" de "para" para}
-                              :as :json})
-        traduzido (get-in response [:body :traduzido])]
-    (if (str/blank? traduzido) texto traduzido)))
+;; ======== UTILITÁRIOS ========
 
-;; ======== Utilitários ========
 (defn ler-linha-trim []
   (str/trim (read-line)))
 
@@ -46,81 +39,109 @@
       (nth itens idx)
       (do (println "⚠ Seleção inválida!") (recur itens label-fn)))))
 
-;; ======== Chamadas à API ========
+;; ======== CHAMADAS À API ========
+
 (defn buscar-alimentos [termo]
-  (let [termo-en (traduzir-texto termo "pt" "en")
-        response (client/get (str base-url "/buscar-alimentos")
-                             {:query-params {"termo" termo-en}
-                              :as :json})]
-    (map #(update % :description traduzir-texto "en" "pt")
-         (get-in response [:body :alimentos]))))
+  (let [response (client/get (str base-url "/buscar-alimentos")
+                             {:query-params {"termo" termo}
+                              :as :json
+                              :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (get-in response [:body :alimentos])
+      (do (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes])))
+          []))))
 
 (defn obter-kcal-100g [fdc-id]
   (let [response (client/get (str base-url "/calorias-100g/" fdc-id)
-                             {:as :json})]
-    (get-in response [:body :kcal-por-100g])))
+                             {:as :json
+                              :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (get-in response [:body :kcal-por-100g])
+      (do (println (format "⚠ Erro ao obter kcal: %s - %s" (:status response) (get-in response [:body :detalhes])))
+          nil))))
 
-;; ======== Funções de Persistência ========
 (defn salvar-usuario! [usuario]
-  (client/post (str base-url "/salvar-usuario")
-               {:body (json/generate-string usuario)
-                :content-type :json
-                :throw-exceptions false}))
+  (let [response (client/post (str base-url "/salvar-usuario")
+                              {:body (json/generate-string usuario)
+                               :content-type :json
+                               :as :json
+                               :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (println "✅ Usuário cadastrado com sucesso!")
+      (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes]))))))
 
 (defn adicionar-alimento! [alimento]
-  (client/post (str base-url "/adicionar-alimento")
-               {:body (json/generate-string alimento)
-                :content-type :json}))
+  (let [response (client/post (str base-url "/adicionar-alimento")
+                              {:body (json/generate-string alimento)
+                               :content-type :json
+                               :as :json
+                               :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (println "✅ Alimento registrado!")
+      (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes]))))))
 
 (defn adicionar-exercicio! [exercicio]
-  (client/post (str base-url "/adicionar-exercicio")
-               {:body (json/generate-string exercicio)
-                :content-type :json}))
+  (let [response (client/post (str base-url "/adicionar-exercicio")
+                              {:body (json/generate-string exercicio)
+                               :content-type :json
+                               :as :json
+                               :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (println "✅ Exercício registrado!")
+      (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes]))))))
 
 (defn obter-dados []
-  (let [response (client/get (str base-url "/obter-dados") {:as :json})]
-    (:body response)))
+  (let [response (client/get (str base-url "/obter-dados")
+                             {:as :json
+                              :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (:body response)
+      (do (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes])))
+          {}))))
 
 (defn escolher-periodo []
-  (let [response (client/get (str base-url "/datas-disponiveis") {:as :json})
-        datas (get-in response [:body :datas])]
-    (if (empty? datas)
-      (do (println "⚠ Não há dados disponíveis para gerar relatório.") nil)
-      (do
-        (println "\n📅 Datas disponíveis:")
-        (doseq [data datas] (println " - " data))
-        (println "\nDefina o período para o relatório:")
-        (let [inicio (ler-data "Data inicial (AAAA-MM-DD): ")
-              fim (ler-data "Data final (AAAA-MM-DD): ")]
-          {:inicio inicio :fim fim})))))
+  (let [response (client/get (str base-url "/datas-disponiveis")
+                             {:as :json
+                              :throw-exceptions false})]
+    (if (= 200 (:status response))
+      (let [datas (get-in response [:body :datas])]
+        (if (empty? datas)
+          (do (println "⚠ Não há dados disponíveis para gerar relatório.") nil)
+          (do
+            (println "\n📅 Datas disponíveis:")
+            (doseq [data datas] (println " - " data))
+            (println "\nDefina o período para o relatório:")
+            {:inicio (ler-data "Data inicial (AAAA-MM-DD): ")
+             :fim    (ler-data "Data final (AAAA-MM-DD): ")})))
+      (do (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes])))
+          nil))))
 
-;; ======== Funções de Menu ========
+;; ======== FUNÇÕES DE MENU ========
+
 (defn cadastrar-usuario []
   (print "Nome: ") (flush)
   (let [nome (ler-linha-trim)
         peso (ler-double "Peso (kg): ")]
     (if (and (not (str/blank? nome)) peso)
-      (do
-        (salvar-usuario! {:nome nome :peso peso})
-        (println "✅ Usuário cadastrado com sucesso!"))
+      (salvar-usuario! {:nome nome :peso peso})
       (println "⚠ Dados inválidos!"))))
 
 (defn adicionar-alimento []
   (print "Data do consumo (AAAA-MM-DD): ") (flush)
-  (let [data      (ler-linha-trim)
-        termo     (do (print "Nome do alimento: ") (flush) (ler-linha-trim))
+  (let [data (ler-linha-trim)
+        termo (do (print "Nome do alimento: ") (flush) (ler-linha-trim))
         alimentos (buscar-alimentos termo)]
     (if (empty? alimentos)
       (println "⚠ Nenhum alimento encontrado.")
-      (let [itens     (map #(assoc % :kcal100g (obter-kcal-100g (:fdcId %))) alimentos)
+      (let [itens (map #(assoc % :kcal100g (obter-kcal-100g (:fdcId %))) alimentos)
             escolhido (escolher-item itens #(format "%s - %.1f kcal/100g" (:description %) (:kcal100g %)))
-            gramas    (ler-double "Quantos gramas ingeridos? ")]
+            gramas (ler-double "Quantos gramas ingeridos? ")]
         (when gramas
           (let [info {:descricao (:description escolhido)
-                      :fdcId     (:fdcId escolhido)
-                      :gramas    gramas
-                      :kcal      (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
-                      :data      data}]
+                      :fdcId (:fdcId escolhido)
+                      :gramas gramas
+                      :kcal (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
+                      :data data}]
             (adicionar-alimento! info)
             (println (format "\n🍽 %s | %.1fg | %d kcal" (:descricao info) gramas (:kcal info)))
             (when (menu-loop? "Deseja adicionar outro alimento?")
@@ -128,36 +149,37 @@
 
 (defn adicionar-exercicio []
   (print "Data do exercício (AAAA-MM-DD): ") (flush)
-  (let [data    (ler-linha-trim)
-        nome    (do (print "Nome do exercício: ") (flush) (ler-linha-trim))
-        nome-en (traduzir-texto nome "pt" "en")
+  (let [data (ler-linha-trim)
+        nome (do (print "Nome do exercício: ") (flush) (ler-linha-trim))
         duracao (ler-double "Duração (min): ")
-        peso    (:peso (first (vals (:usuarios (obter-dados)))))]
-    (if (and nome duracao peso)
-      (let [response  (client/get (str base-url "/atividade")
-                                  {:query-params {"atividade" nome-en "peso" peso "duracao" duracao}
-                                   :as :json})
-            atividades (map #(update % :name traduzir-texto "en" "pt")
-                            (get-in response [:body :variantes]))]
-        (if (empty? atividades)
-          (println "⚠ Nenhum exercício encontrado.")
-          (let [escolhido (escolher-item atividades #(format "%s - %s kcal" (:name %) (:total_calories %)))
-                exercicio {:nome (:name escolhido)
-                           :duracao (:duration_minutes escolhido)
-                           :calorias (:total_calories escolhido)
-                           :data data}]
-            (adicionar-exercicio! exercicio)
-            (println (format "\n🏃 %s | %s min | %s kcal" (:nome exercicio) (:duracao exercicio) (:calorias exercicio)))
-            (when (menu-loop? "Deseja adicionar outro exercício?")
-              (adicionar-exercicio)))))
+        peso (:peso (first (vals (:usuarios (obter-dados)))))]
+    (if (and (not (str/blank? nome)) duracao peso)
+      (let [response (client/get (str base-url "/atividade")
+                                 {:query-params {"atividade" nome
+                                                 "peso" peso
+                                                 "duracao" duracao}
+                                  :as :json
+                                  :throw-exceptions false})]
+        (if (= 200 (:status response))
+          (let [atividades (get-in response [:body :variantes])]
+            (if (empty? atividades)
+              (println "⚠ Nenhum exercício encontrado.")
+              (let [escolhido (escolher-item atividades #(format "%s - %s kcal" (:name %) (:total_calories %)))
+                    exercicio {:nome (:name escolhido)
+                               :duracao (:duration_minutes escolhido)
+                               :calorias (:total_calories escolhido)
+                               :data data}]
+                (adicionar-exercicio! exercicio)
+                (println (format "\n🏃 %s | %s min | %s kcal" (:nome exercicio) (:duracao exercicio) (:calorias exercicio)))
+                (when (menu-loop? "Deseja adicionar outro exercício?")
+                  (adicionar-exercicio)))))
+          (println (format "⚠ Erro: %s - %s" (:status response) (get-in response [:body :detalhes])))))
       (println "⚠ Dados incompletos!"))))
 
-;; FUNÇÃO MODIFICADA: Relatório com filtro por período
 (defn mostrar-relatorio []
   (if-let [periodo (escolher-periodo)]
     (let [{:keys [inicio fim]} periodo
           dados (obter-dados)
-          ;; Filtrar dados pelo período
           alimentos-filtrados (filter #(and (>= (compare (:data %) inicio) 0)
                                             (<= (compare (:data %) fim) 0))
                                       (:alimentos dados))
@@ -167,7 +189,6 @@
           total-alimentos (reduce + (map :kcal alimentos-filtrados))
           total-exercicios (reduce + (map :calorias exercicios-filtrados))
           saldo (- total-alimentos total-exercicios)]
-
       (println (format "\n=== 📊 Relatório de Calorias (%s a %s) ===" inicio fim))
       (println "\n👤 Usuário:")
       (doseq [[nome usuario] (:usuarios dados)]
@@ -179,11 +200,12 @@
       (println "\n🏋 Exercícios Realizados:")
       (doseq [exercicio exercicios-filtrados]
         (println (format " - [%s] %s: %s kcal" (:data exercicio) (:nome exercicio) (:calorias exercicio))))
-      (println (format "\n🟢 Total de calorias queimadas: %d kcal" total-exercicios))
       (println (format "\n⚖ Saldo de calorias: %s%d kcal"
                        (if (neg? saldo) "" "+")
                        saldo)))
     (println "Operação cancelada.")))
+
+;; ======== MENU PRINCIPAL ========
 
 (defn mostrar-menu []
   (println "\n======== 🥗 MENU 🏋 ========")
