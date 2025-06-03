@@ -178,73 +178,76 @@
       (println "⚠ Dados inválidos!"))))
 
 (defn adicionar-alimento []
-  (print "Data do consumo (AAAA-MM-DD): ") (flush)
-  (let [data      (ler-linha-trim)
-        termo     (do
-                    (print "Nome do alimento: ")
-                    (flush)
-                    (ler-linha-trim))
-        alimentos (buscar-alimentos termo)]
-    (if (empty? alimentos)
-      (println "⚠ Nenhum alimento encontrado.")
-      (let [itens     (map #(assoc % :kcal100g (obter-kcal-100g (:fdcId %))) alimentos)
-            escolhido (escolher-item itens
-                                     #(format "%s - %.1f kcal/100g"
-                                              (:description %)
-                                              (:kcal100g %)))
-            gramas    (ler-double "Quantos gramas ingeridos? ")]
-        (when gramas
-          (let [info {:descricao (:description escolhido)
-                      :fdcId     (:fdcId escolhido)
-                      :gramas    gramas
-                      :kcal      (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
-                      :data      data}]
-            (adicionar-alimento! info)
-            (println (format "\n🍽 %s | %.1fg | %d kcal"
-                             (:descricao info)
-                             gramas
-                             (:kcal info)))
-            (when (menu-loop? "Deseja adicionar outro alimento?")
-              (adicionar-alimento))))))))
+  (letfn [(loop-alimentos []
+            (print "Data do consumo (AAAA-MM-DD): ") (flush)
+            (let [data      (ler-linha-trim)
+                  termo     (do
+                              (print "Nome do alimento: ")
+                              (flush)
+                              (ler-linha-trim))
+                  alimentos (buscar-alimentos termo)]
+              (if (empty? alimentos)
+                (println "⚠ Nenhum alimento encontrado.")
+                (let [itens     (map #(assoc % :kcal100g (obter-kcal-100g (:fdcId %))) alimentos)
+                      escolhido (escolher-item itens
+                                               #(format "%s - %.1f kcal/100g"
+                                                              (:description %)
+                                                              (:kcal100g %)))
+                      gramas    (ler-double "Quantos gramas ingeridos? ")]
+                  (when gramas
+                    (let [info {:descricao (:description escolhido)
+                                :fdcId     (:fdcId escolhido)
+                                :gramas    gramas
+                                :kcal      (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
+                                :data      data}]
+                      (adicionar-alimento! info)
+                      (println (format "\n🍽 %s | %.1fg | %d kcal"
+                                       (:descricao info)
+                                       gramas
+                                       (:kcal info)))
+                      (when (menu-loop? "Deseja adicionar outro alimento?")
+                        (recur))))))))]
+    (loop-alimentos)))
 
 (defn adicionar-exercicio []
-  (let [data    (ler-data "Data do exercício (AAAA-MM-DD): ")
-        nome    (do
-                  (print "Nome do exercício: ")
-                  (flush)
-                  (ler-linha-trim))
-        duracao (ler-double "Duração (min): ")
-        dados   (obter-dados)
-        peso    (when (seq (:usuarios dados))
-                  (-> dados :usuarios first val :peso))]
-    (if (and (not (str/blank? nome)) duracao peso)
-      (let [response (client/get (str base-url "/atividade")
-                                 {:query-params {"atividade" nome
-                                                 "peso"      peso
-                                                 "duracao"   duracao}
-                                  :as            :json
-                                  :throw-exceptions false})
-            status   (:status response)
-            body     (:body response)]
-        (if (and (= 200 status) (seq (:variantes body)))
-          (let [atividades (:variantes body)
-                escolhido   (escolher-item atividades
-                                           #(format "%s - %s kcal"
-                                                    (:name %)
-                                                    (:total_calories %)))
-                exercicio   {:nome     (:name escolhido)
-                             :duracao  (:duration_minutes escolhido)
-                             :calorias (:total_calories escolhido)
-                             :data     data}]
-            (adicionar-exercicio! exercicio)
-            (println (format "\n🏃 %s | %s min | %s kcal"
-                             (:nome exercicio)
-                             (:duracao exercicio)
-                             (:calorias exercicio))))
-          (println (str "⚠ Nenhum exercício encontrado para o termo: \"" nome "\"")))
-        (when (menu-loop? "Deseja adicionar outro exercício?")
-          (adicionar-exercicio)))
-      (println "⚠ Dados incompletos! Verifique se o usuário está cadastrado."))))
+  (letfn [(loop-exercicios []
+            (let [data    (ler-data "Data do exercício (AAAA-MM-DD): ")
+                  nome    (do
+                            (print "Nome do exercício: ")
+                            (flush)
+                            (ler-linha-trim))
+                  duracao (ler-double "Duração (min): ")
+                  dados   (obter-dados)
+                  peso    (when (seq (:usuarios dados))
+                            (-> dados :usuarios first val :peso))]
+              (if (and (not (str/blank? nome)) duracao peso)
+                (let [response (client/get (str base-url "/atividade")
+                                           {:query-params {"atividade" nome
+                                                           "peso"      peso
+                                                           "duracao"   duracao}
+                                            :as            :json
+                                            :throw-exceptions false})
+                      status   (:status response)
+                      body     (:body response)]
+                  (if (and (= 200 status) (seq (:variantes body)))
+                    (let [atividades (:variantes body)
+                          escolhido   (escolher-item atividades
+                                                   #(format "%s - %s kcal"
+                                                            (:name %)
+                                                            (:total_calories %)))
+                          exercicio   {:nome      (:name escolhido)
+                                        :duracao  (:duration_minutes escolhido)
+                                        :calorias (:total_calories escolhido)
+                                        :data     data}]
+                      (adicionar-exercicio! exercicio)
+                      (println (format "\n🏃 %s | %s min | %s kcal"
+                                       (:nome exercicio)
+                                       (:duracao exercicio)
+                                       (:calorias exercicio))))
+                    (println (str "⚠ Nenhum exercício encontrado para o termo: \"" nome "\"")))
+                  (when (menu-loop? "Deseja adicionar outro exercício?")
+                    (recur))))))]
+    (loop-exercicios)))
 
 (defn mostrar-relatorio []
   (if-let [periodo (escolher-periodo)]
