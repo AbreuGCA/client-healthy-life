@@ -31,18 +31,28 @@
   (print (str msg " (s = sim / n = não): ")) (flush)
   (= "s" (str/lower-case (ler-linha-trim))))
 
-(defn escolher-item [itens label-fn]
-  (doseq [[i item] (map-indexed vector itens)]
-    (println (format "%d. %s" i (label-fn item))))
-  (print "Selecione o número desejado: ") (flush)
-  (let [input (ler-linha-trim)
-        idx   (try (Integer/parseInt input)
-                   (catch Exception _ -1))]
-    (if (and (>= idx 0) (< idx (count itens)))
-      (nth itens idx)
-      (do
-        (println "⚠ Seleção inválida!")
-        (recur itens label-fn)))))
+(defn imprimir-itens [itens label-fn]
+  (doall
+    (map println
+         (map-indexed
+           (fn [i item]
+             (format "%d. %s" i (label-fn item)))
+           itens))))
+
+(defn escolher-item
+  ([itens label-fn]
+   (escolher-item itens label-fn nil))
+  ([itens label-fn _]
+   (imprimir-itens itens label-fn)
+   (print "Selecione o número desejado: ") (flush)
+   (let [input (ler-linha-trim)
+         idx   (try (Integer/parseInt input) (catch Exception _ -1))]
+     (if (and (>= idx 0) (< idx (count itens)))
+       (nth itens idx)
+       (do
+         (println "⚠ Seleção inválida!")
+         (recur itens label-fn nil))))))
+
 
 ;; ======== CHAMADAS À API ========
 
@@ -142,8 +152,7 @@
             nil)
           (do
             (println "\n📅 Datas disponíveis:")
-            (doseq [data datas]
-              (println " - " data))
+            (doall (map #(println " - " %) datas))
             (println "\nDefina o período para o relatório:")
             {:inicio (ler-data "Data inicial (AAAA-MM-DD): ")
              :fim    (ler-data "Data final (AAAA-MM-DD): ")})))
@@ -264,28 +273,31 @@
               saldo             (- total-alimentos total-exercicios)]
           (println (format "\n=== 📊 Relatório de Calorias (%s a %s) ===\n" inicio fim))
           (println "👤 Usuário:")
-          (doseq [[nome usuario] usuarios]
-            (println (format " - %s: %.1f kg, %.0f cm, %d anos, sexo: %s"
-                             nome
-                             (:peso usuario)
-                             (:altura usuario)
-                             (int (:idade usuario))
-                             (:sexo usuario))))
+          (doall (map (fn [[nome usuario]]
+                        (println (format " - %s: %.1f kg, %.0f cm, %d anos, sexo: %s"
+                                         nome
+                                         (:peso usuario)
+                                         (:altura usuario)
+                                         (int (:idade usuario))
+                                         (:sexo usuario))))
+                      usuarios))
           (println "\n🍽 Alimentos Consumidos:")
-          (doseq [alimento alimentos]
-            (println (format " - [%s] %s: %d kcal - %.0f gramas"
-                             (:data alimento)
-                             (:descricao alimento)
-                             (:kcal alimento)
-                             (:gramas alimento))))
+          (doall (map (fn [alimento]
+                        (println (format " - [%s] %s: %d kcal - %.0f gramas"
+                                         (:data alimento)
+                                         (:descricao alimento)
+                                         (:kcal alimento)
+                                         (:gramas alimento))))
+                      alimentos))
           (println (format "\n🔴 Total de calorias consumidas: %d kcal\n" total-alimentos))
           (println "🏋 Exercícios Realizados:")
-          (doseq [exercicio exercicios]
-            (println (format " - [%s] %s: %s kcal - %s minutos"
-                             (:data exercicio)
-                             (:nome exercicio)
-                             (:calorias exercicio)
-                             (:duracao exercicio))))
+          (doall (map (fn [exercicio]
+                        (println (format " - [%s] %s: %s kcal - %s minutos"
+                                         (:data exercicio)
+                                         (:nome exercicio)
+                                         (:calorias exercicio)
+                                         (:duracao exercicio))))
+                      exercicios))
           (println (format "\n🔴 Total de calorias gastas: %d kcal\n" total-exercicios))
           (println (format "⚖ Saldo de calorias: %s%d kcal"
                            (if (neg? saldo) "" "+")
@@ -330,15 +342,16 @@
     (cadastrar-usuario))
 
   ;; Loop principal
-  (loop []
-    (mostrar-menu)
-    (case (ler-linha-trim)
-      "1" (do (adicionar-alimento) (recur))
-      "2" (do (adicionar-exercicio) (recur))
-      "3" (do (mostrar-relatorio) (recur))
-      "4" (do (mostrar-saldo) (recur))
-      "0" (println "👋 Até logo!")
-      (do (println "⚠ Opção inválida.") (recur)))))
+  (letfn [(menu-loop []
+            (mostrar-menu)
+            (case (ler-linha-trim)
+              "1" (do (adicionar-alimento) (recur))
+              "2" (do (adicionar-exercicio) (recur))
+              "3" (do (mostrar-relatorio) (recur))
+              "4" (do (mostrar-saldo) (recur))
+              "0" (println "👋 Até logo!")
+              (do (println "⚠ Opção inválida.") (recur))))]
+    (menu-loop)))
 
 (when (= *ns* 'cliente-healthy-life.core)
   (-main))
