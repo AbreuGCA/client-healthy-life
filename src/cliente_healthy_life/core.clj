@@ -120,10 +120,13 @@
 
 (defn cadastrar-usuario []
   (print "Nome: ") (flush)
-  (let [nome (ler-linha-trim)
-        peso (ler-double "Peso (kg): ")]
-    (if (and (not (str/blank? nome)) peso)
-      (salvar-usuario! {:nome nome :peso peso})
+  (let [nome   (ler-linha-trim)
+        peso   (ler-double "Peso (kg): ")
+        altura (ler-double "Altura (cm): ")
+        idade  (ler-double "Idade: ")
+        sexo   (do (print "Sexo (M/F): ") (flush) (ler-linha-trim))]
+    (if (and (not (str/blank? nome)) peso altura idade (not (str/blank? sexo)))
+      (salvar-usuario! {:nome nome :peso peso :altura altura :idade idade :sexo sexo})
       (println "⚠ Dados inválidos!"))))
 
 (defn adicionar-alimento []
@@ -179,30 +182,31 @@
 (defn mostrar-relatorio []
   (if-let [periodo (escolher-periodo)]
     (let [{:keys [inicio fim]} periodo
-          dados (obter-dados)
-          alimentos-filtrados (filter #(and (>= (compare (:data %) inicio) 0)
-                                            (<= (compare (:data %) fim) 0))
-                                      (:alimentos dados))
-          exercicios-filtrados (filter #(and (>= (compare (:data %) inicio) 0)
-                                             (<= (compare (:data %) fim) 0))
-                                       (:exercicios dados))
-          total-alimentos (reduce + (map :kcal alimentos-filtrados))
-          total-exercicios (reduce + (map :calorias exercicios-filtrados))
-          saldo (- total-alimentos total-exercicios)]
-      (println (format "\n=== 📊 Relatório de Calorias (%s a %s) ===" inicio fim))
-      (println "\n👤 Usuário:")
-      (doseq [[nome usuario] (:usuarios dados)]
-        (println (format " - %s (%.1f kg)" nome (:peso usuario))))
-      (println "\n🍽 Alimentos Consumidos:")
-      (doseq [alimento alimentos-filtrados]
-        (println (format " - [%s] %s: %d kcal" (:data alimento) (:descricao alimento) (:kcal alimento))))
-      (println (format "\n🔴 Total de calorias consumidas: %d kcal" total-alimentos))
-      (println "\n🏋 Exercícios Realizados:")
-      (doseq [exercicio exercicios-filtrados]
-        (println (format " - [%s] %s: %s kcal" (:data exercicio) (:nome exercicio) (:calorias exercicio))))
-      (println (format "\n⚖ Saldo de calorias: %s%d kcal"
-                       (if (neg? saldo) "" "+")
-                       saldo)))
+          response (client/get (str base-url "/extrato")
+                               {:query-params {"inicio" inicio "fim" fim}
+                                :as :json
+                                :throw-exceptions false})]
+      (if (= 200 (:status response))
+        (let [{:keys [usuarios alimentos exercicios]} (:body response)
+              total-alimentos (reduce + (map :kcal alimentos))
+              total-exercicios (reduce + (map :calorias exercicios))
+              saldo (- total-alimentos total-exercicios)]
+          (println (format "\n=== 📊 Relatório de Calorias (%s a %s) ===" inicio fim))
+          (println "\n👤 Usuário:")
+          (doseq [[nome usuario] usuarios]
+            (println (format " - %s (%.1f kg, %.0f cm, %d anos, sexo: %s)"
+                             nome (:peso usuario) (:altura usuario) (int (:idade usuario)) (:sexo usuario))))
+          (println "\n🍽 Alimentos Consumidos:")
+          (doseq [alimento alimentos]
+            (println (format " - [%s] %s: %d kcal" (:data alimento) (:descricao alimento) (:kcal alimento))))
+          (println (format "\n🔴 Total de calorias consumidas: %d kcal" total-alimentos))
+          (println "\n🏋 Exercícios Realizados:")
+          (doseq [exercicio exercicios]
+            (println (format " - [%s] %s: %s kcal" (:data exercicio) (:nome exercicio) (:calorias exercicio))))
+          (println (format "\n⚖ Saldo de calorias: %s%d kcal"
+                           (if (neg? saldo) "" "+")
+                           saldo)))
+        (println "⚠ Erro ao obter extrato.")))
     (println "Operação cancelada.")))
 
 ;; ======== MENU PRINCIPAL ========
