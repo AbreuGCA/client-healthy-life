@@ -39,20 +39,16 @@
              (format "%d. %s" i (label-fn item)))
            itens))))
 
-(defn escolher-item
-  ([itens label-fn]
-   (escolher-item itens label-fn nil))
-  ([itens label-fn _]
-   (imprimir-itens itens label-fn)
-   (print "Selecione o número desejado: ") (flush)
-   (let [input (ler-linha-trim)
-         idx   (try (Integer/parseInt input) (catch Exception _ -1))]
-     (if (and (>= idx 0) (< idx (count itens)))
-       (nth itens idx)
-       (do
-         (println "⚠ Seleção inválida!")
-         (recur itens label-fn nil))))))
-
+(defn escolher-item [itens label-fn]
+  (imprimir-itens itens label-fn)
+  (print "Selecione o número desejado: ") (flush)
+  (let [input (ler-linha-trim)
+        idx   (try (Integer/parseInt input) (catch Exception _ -1))]
+    (if (and (>= idx 0) (< idx (count itens)))
+      (nth itens idx)
+      (do
+        (println "⚠ Seleção inválida!")
+        (recur itens label-fn)))))
 
 ;; ======== CHAMADAS À API ========
 
@@ -330,7 +326,7 @@
   (println "\n======== 🥗 MENU 🏋 ========")
   (println "1. Adicionar Alimento")
   (println "2. Adicionar Exercício")
-  (println "3. Relatório de Calorias")
+  (println "3. Relatório Detalhado de Calorias")
   (println "4. Exibir Saldo de Calorias")
   (println "0. Sair")
   (print "Escolha uma opção: ") (flush))
