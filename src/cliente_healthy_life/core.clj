@@ -10,13 +10,29 @@
 (defn ler-linha-trim []
   (str/trim (read-line)))
 
-(defn ler-double [msg]
+(defn ler-sexo []
+  (print "Sexo (M/F): ") (flush)
+  (let [entrada (str/upper-case (ler-linha-trim))]
+    (if (contains? #{"M" "F"} entrada)
+      entrada
+      (do
+        (println "⚠ Sexo inválido! Digite M ou F.")
+        (recur)))))
+
+(defn numero-valido? [s]
   (try
-    (print msg) (flush)
-    (Double/parseDouble (ler-linha-trim))
-    (catch Exception _
-      (println "⚠ Entrada inválida! Digite um número.")
-      nil)))
+    (Double/parseDouble s)
+    true
+    (catch Exception _ false)))
+
+(defn ler-double [msg]
+  (print msg) (flush)
+  (let [entrada (ler-linha-trim)]
+    (if (numero-valido? entrada)
+      (Double/parseDouble entrada)
+      (do
+        (println "⚠ Erro, entrada inválida!")
+        (recur msg)))))
 
 (defn ler-data [msg]
   (print msg) (flush)
@@ -131,7 +147,7 @@
                                {:as            :json
                                 :throw-exceptions false})
           usuarios (get-in response [:body :usuarios])]
-      (and (map? usuarios) (not (empty? usuarios))))
+      (seq usuarios))
     (catch Exception e
       (println "⚠ Erro ao verificar usuário:" (.getMessage e))
       false)))
@@ -166,20 +182,16 @@
         peso   (ler-double "Peso (kg): ")
         altura (ler-double "Altura (cm): ")
         idade  (ler-double "Idade: ")
-        sexo   (do
-                 (print "Sexo (M/F): ")
-                 (flush)
-                 (ler-linha-trim))]
+        sexo   (ler-sexo)]
     (if (and (not (str/blank? nome))
              peso
              altura
-             idade
-             (not (str/blank? sexo)))
+             idade)
       (salvar-usuario! {:nome   nome
                         :peso   peso
                         :altura altura
                         :idade  idade
-                        :sexo   sexo})
+                        :sexo   (str/upper-case sexo)})
       (println "⚠ Dados inválidos!"))))
 
 (defn adicionar-alimento []
@@ -332,10 +344,11 @@
   (print "Escolha uma opção: ") (flush))
 
 (defn -main []
-  ;; Verificar e cadastrar usuário se necessário
-  (when (not (usuario-cadastrado?))
-    (println "\n👤 Nenhum usuário encontrado. Vamos cadastrá-lo agora:\n")
-    (cadastrar-usuario))
+  (if (usuario-cadastrado?)
+    (println "\n✅ Usuário já cadastrado. Vamos continuar!\n")
+    (do
+      (println "\n👤 Nenhum usuário encontrado. Vamos cadastrá-lo agora:\n")
+      (cadastrar-usuario)))
 
   ;; Loop principal
   (letfn [(menu-loop []
