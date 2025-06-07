@@ -178,21 +178,18 @@
 
 (defn cadastrar-usuario []
   (print "Nome: ") (flush)
-  (let [nome   (ler-linha-trim)
-        peso   (ler-double "Peso (kg): ")
-        altura (ler-double "Altura (cm): ")
-        idade  (ler-double "Idade: ")
-        sexo   (ler-sexo)]
-    (if (and (not (str/blank? nome))
-             peso
-             altura
-             idade)
-      (salvar-usuario! {:nome   nome
-                        :peso   peso
-                        :altura altura
-                        :idade  idade
-                        :sexo   (str/upper-case sexo)})
-      (println "⚠ Dados inválidos!"))))
+  (let [nome   (ler-linha-trim)]
+    (if (str/blank? nome)
+      (println "⚠ Nome inválido!")
+      (let [peso   (ler-double "Peso (kg): ")
+            altura (ler-double "Altura (cm): ")
+            idade  (ler-double "Idade: ")
+            sexo   (ler-sexo)]
+        (salvar-usuario! {:nome   nome
+                          :peso   peso
+                          :altura altura
+                          :idade  idade
+                          :sexo   sexo})))))
 
 (defn adicionar-alimento []
   (letfn [(loop-alimentos []
@@ -275,10 +272,7 @@
                                        :as            :json
                                        :throw-exceptions false})]
       (if (= 200 (:status response))
-        (let [{:keys [usuarios alimentos exercicios]} (:body response)
-              total-alimentos   (reduce + (map :kcal alimentos))
-              total-exercicios  (reduce + (map :calorias exercicios))
-              saldo             (- total-alimentos total-exercicios)]
+        (let [{:keys [usuarios alimentos exercicios saldo consumido gasto]} (:body response)]
           (println (format "\n=== 📊 Relatório de Calorias (%s a %s) ===\n" inicio fim))
           (println "👤 Usuário:")
           (doall (map (fn [[nome usuario]]
@@ -297,7 +291,7 @@
                                          (:kcal alimento)
                                          (:gramas alimento))))
                       alimentos))
-          (println (format "\n🔴 Total de calorias consumidas: %d kcal\n" total-alimentos))
+          (println (format "\n🔴 Total de calorias consumidas: %d kcal\n" consumido))
           (println "🏋 Exercícios Realizados:")
           (doall (map (fn [exercicio]
                         (println (format " - [%s] %s: %s kcal - %s minutos"
@@ -306,7 +300,7 @@
                                          (:calorias exercicio)
                                          (:duracao exercicio))))
                       exercicios))
-          (println (format "\n🔴 Total de calorias gastas: %d kcal\n" total-exercicios))
+          (println (format "\n🔴 Total de calorias gastas: %d kcal\n" gasto))
           (println (format "⚖ Saldo de calorias: %s%d kcal"
                            (if (neg? saldo) "" "+")
                            saldo)))
