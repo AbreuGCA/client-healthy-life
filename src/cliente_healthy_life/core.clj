@@ -69,6 +69,7 @@
 ;; ======== CHAMADAS À API ========
 
 (defn buscar-alimentos [termo]
+  (println (format "🔍 Buscando resultados para %s... aguarde." termo))
   (let [response (client/get (str base-url "/buscar-alimentos")
                              {:query-params {"termo" termo}
                               :as            :json
@@ -195,32 +196,40 @@
   (letfn [(loop-alimentos []
             (print "Data do consumo (AAAA-MM-DD): ") (flush)
             (let [data      (ler-linha-trim)
-                  termo     (do
-                              (print "Nome do alimento: ")
-                              (flush)
-                              (ler-linha-trim))
+                  termo     (do (print "Nome do alimento: ") (flush) (ler-linha-trim))
                   alimentos (buscar-alimentos termo)]
               (if (empty? alimentos)
                 (println "⚠ Nenhum alimento encontrado.")
                 (let [itens     (map #(assoc % :kcal100g (obter-kcal-100g (:fdcId %))) alimentos)
                       escolhido (escolher-item itens
                                                #(format "%s - %.1f kcal/100g"
-                                                              (:description %)
-                                                              (:kcal100g %)))
-                      gramas    (ler-double "Quantos gramas ingeridos? ")]
-                  (when gramas
-                    (let [info {:descricao (:description escolhido)
-                                :fdcId     (:fdcId escolhido)
-                                :gramas    gramas
-                                :kcal      (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
-                                :data      data}]
-                      (adicionar-alimento! info)
-                      (println (format "\n🍽 %s | %.1fg | %d kcal"
-                                       (:descricao info)
-                                       gramas
-                                       (:kcal info)))
-                      (when (menu-loop? "Deseja adicionar outro alimento?")
-                        (recur))))))))]
+                                                        (:description %)
+                                                        (:kcal100g %)))
+                      kcal100g  (:kcal100g escolhido)]
+                  (cond
+                    (= kcal100g -1)
+                    (do (println "⚠ Unidade de energia desconhecida. Não é possível calcular calorias para esse alimento.")
+                        (when (menu-loop? "Deseja tentar outro alimento?") (recur)))
+
+                    (= kcal100g -2)
+                    (do (println "⚠ Nenhuma informação de energia encontrada para esse alimento.")
+                        (when (menu-loop? "Deseja tentar outro alimento?") (recur)))
+
+                    :else
+                    (let [gramas (ler-double "Quantos gramas ingeridos? ")]
+                      (when gramas
+                        (let [info {:descricao (:description escolhido)
+                                    :fdcId     (:fdcId escolhido)
+                                    :gramas    gramas
+                                    :kcal      (Math/round (* (/ (:kcal100g escolhido) 100.0) gramas))
+                                    :data      data}]
+                          (adicionar-alimento! info)
+                          (println (format "\n🍽 %s | %.1fg | %d kcal"
+                                           (:descricao info)
+                                           gramas
+                                           (:kcal info)))
+                          (when (menu-loop? "Deseja adicionar outro alimento?")
+                            (recur))))))))))]
     (loop-alimentos)))
 
 (defn adicionar-exercicio []
