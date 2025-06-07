@@ -101,11 +101,9 @@
                                              "peso"      peso
                                              "duracao"   duracao}
                               :as           :json
-                              :throw-exceptions false})
-        status   (:status response)
-        body     (:body response)]
-    (if (and (= 200 status) (seq (:variantes body)))
-      (:variantes body)
+                              :throw-exceptions false})]
+    (if (and (= 200 :status response) (seq (:variantes (:body response))))
+      (:variantes (:body response))
       nil)))
 
 (defn salvar-usuario! [usuario]
@@ -195,7 +193,9 @@
   (print "Nome: ") (flush)
   (let [nome   (ler-linha-trim)]
     (if (str/blank? nome)
-      (println "⚠ Nome inválido!")
+      (do
+        (println "⚠ Nome inválido!")
+        (recur))
       (let [peso   (ler-double "Peso (kg): ")
             altura (ler-double "Altura (cm): ")
             idade  (ler-double "Idade: ")
