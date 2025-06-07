@@ -94,6 +94,20 @@
                          (get-in response [:body :detalhes])))
         nil))))
 
+(defn buscar-exercicios [nome peso duracao]
+  (println (format "🔍 Buscando resultados para %s... aguarde." nome))
+  (let [response (client/get (str base-url "/atividade")
+                             {:query-params {"atividade" nome
+                                             "peso"      peso
+                                             "duracao"   duracao}
+                              :as           :json
+                              :throw-exceptions false})
+        status   (:status response)
+        body     (:body response)]
+    (if (and (= 200 status) (seq (:variantes body)))
+      (:variantes body)
+      nil)))
+
 (defn salvar-usuario! [usuario]
   (let [response (client/post (str base-url "/salvar-usuario")
                               {:body          (json/generate-string usuario)
@@ -235,41 +249,31 @@
 (defn adicionar-exercicio []
   (letfn [(loop-exercicios []
             (let [data    (ler-data "Data do exercício (AAAA-MM-DD): ")
-                  nome    (do
-                            (print "Nome do exercício: ")
-                            (flush)
-                            (ler-linha-trim))
+                  nome    (do (print "Nome do exercício: ") (flush) (ler-linha-trim))
                   duracao (ler-double "Duração (min): ")
                   dados   (obter-dados)
                   peso    (when (seq (:usuarios dados))
-                            (-> dados :usuarios first val :peso))]
+                            (-> dados :usuarios first val :peso))
+                  atividades (buscar-exercicios nome peso duracao)]
               (if (and (not (str/blank? nome)) duracao peso)
-                (let [response (client/get (str base-url "/atividade")
-                                           {:query-params {"atividade" nome
-                                                           "peso"      peso
-                                                           "duracao"   duracao}
-                                            :as            :json
-                                            :throw-exceptions false})
-                      status   (:status response)
-                      body     (:body response)]
-                  (if (and (= 200 status) (seq (:variantes body)))
-                    (let [atividades (:variantes body)
-                          escolhido   (escolher-item atividades
-                                                   #(format "%s - %s kcal"
-                                                            (:name %)
-                                                            (:total_calories %)))
-                          exercicio   {:nome      (:name escolhido)
-                                        :duracao  (:duration_minutes escolhido)
-                                        :calorias (:total_calories escolhido)
-                                        :data     data}]
-                      (adicionar-exercicio! exercicio)
-                      (println (format "\n🏃 %s | %s min | %s kcal"
-                                       (:nome exercicio)
-                                       (:duracao exercicio)
-                                       (:calorias exercicio))))
-                    (println (str "⚠ Nenhum exercício encontrado para o termo: \"" nome "\"")))
-                  (when (menu-loop? "Deseja adicionar outro exercício?")
-                    (recur))))))]
+                (if (empty? atividades)
+                  (println (str "⚠ Nenhum exercício encontrado para o termo: \"" nome "\""))
+                  (let [escolhido (escolher-item atividades
+                                                 #(format "%s - %s kcal"
+                                                          (:name %)
+                                                          (:total_calories %)))
+                        exercicio {:nome      (:name escolhido)
+                                   :duracao  (:duration_minutes escolhido)
+                                   :calorias (:total_calories escolhido)
+                                   :data     data}]
+                    (adicionar-exercicio! exercicio)
+                    (println (format "\n🏃 %s | %s min | %s kcal"
+                                     (:nome exercicio)
+                                     (:duracao exercicio)
+                                     (:calorias exercicio)))))
+                (println "⚠ Dados inválidos!"))
+              (when (menu-loop? "Deseja adicionar outro exercício?")
+                (recur))))]
     (loop-exercicios)))
 
 (defn mostrar-relatorio []
