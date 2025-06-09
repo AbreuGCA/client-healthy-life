@@ -21,8 +21,7 @@
 
 (defn numero-valido? [s]
   (try
-    (Double/parseDouble s)
-    true
+    (pos? (Double/parseDouble s))
     (catch Exception _ false)))
 
 (defn ler-double [msg]
@@ -100,11 +99,15 @@
                              {:query-params {"atividade" nome
                                              "peso"      peso
                                              "duracao"   duracao}
-                              :as           :json
-                              :throw-exceptions false})]
-    (if (and (= 200 :status response) (seq (:variantes (:body response))))
-      (:variantes (:body response))
-      nil)))
+                              :as                 :json
+                              :throw-exceptions   false})]
+    (if (= 200 (:status response))
+      (get-in response [:body :variantes])
+      (do
+        (println (format "⚠ Erro: %s - %s"
+                         (:status response)
+                         (get-in response [:body :detalhes])))
+        []))))
 
 (defn salvar-usuario! [usuario]
   (let [response (client/post (str base-url "/salvar-usuario")
@@ -208,8 +211,7 @@
 
 (defn adicionar-alimento []
   (letfn [(loop-alimentos []
-            (print "Data do consumo (AAAA-MM-DD): ") (flush)
-            (let [data      (ler-linha-trim)
+            (let [data      (ler-data "Data do consumo (AAAA-MM-DD): ")
                   termo     (do (print "Nome do alimento: ") (flush) (ler-linha-trim))
                   alimentos (buscar-alimentos termo)]
               (if (empty? alimentos)
